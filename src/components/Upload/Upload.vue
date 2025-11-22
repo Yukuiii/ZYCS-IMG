@@ -19,7 +19,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
 import { useToast } from '@/components/ui/toast/use-toast';
-import { ossUploader } from '@/lib/ossUploader';
 const { toast } = useToast();
 // 参数
 const props = defineProps<{
@@ -27,7 +26,6 @@ const props = defineProps<{
   UploadConfig: Record<string, any>;
   uploadAPI?: string;
   provider?: string;
-  ossStsEndpoint?: string;
 }>();
 const emits = defineEmits(['update:modelValue']);
 const UploadConfig = ref<Record<string, any>>(props.UploadConfig);
@@ -110,25 +108,15 @@ const fileUpload = async (FileListArr: Array<any>) => {
     emits('update:modelValue', [...FileListArr]);
     // 同步上传状态======
     try {
-      let result: Record<string, any> | undefined;
-      if (currentProvider.value === 'oss') {
-        ossUploader.setEndpoint(props.ossStsEndpoint || '/oss/sts');
-        const ossResult = await ossUploader.uploadFile(i);
-        result = {
-          data: { link: ossResult.url },
-          objectName: ossResult.objectName,
-        };
-      } else {
-        if (!props.uploadAPI) throw new Error('缺少上传接口地址');
-        const formData = new FormData();
-        formData.append('file', i);
-        const res = await fetch(props.uploadAPI, {
-          method: 'POST',
-          body: formData,
-        });
-        if (!res.ok) throw new Error(`上传失败: ${res.status} ${res.statusText}`);
-        result = await res.json();
-      }
+      if (!props.uploadAPI) throw new Error('缺少上传接口地址');
+      const formData = new FormData();
+      formData.append('file', i);
+      const res = await fetch(props.uploadAPI, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`上传失败: ${res.status} ${res.statusText}`);
+      const result = await res.json();
       i.upload_result = {
         ...result,
         _vh_filename: i.name,

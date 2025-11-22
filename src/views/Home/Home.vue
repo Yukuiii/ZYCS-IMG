@@ -31,8 +31,7 @@
       </div>
     </div>
     <!-- 上传 -->
-    <Upload v-model="fileList" :UploadConfig="UploadConfig" :uploadAPI="uploadAPI" :provider="uploadProvider"
-      :ossStsEndpoint="ossStsEndpoint" />
+    <Upload v-model="fileList" :UploadConfig="UploadConfig" :uploadAPI="uploadAPI" :provider="uploadProvider" />
     <section v-show="fileList.length" class="vh-tools"><Button @click="fileList = []">清空</Button><Button
         @click="vh.CopyText(fileList.map((i: any) => i.upload_blob).join('\n'))">复制全部</Button></section>
     <!-- 展示 -->
@@ -55,8 +54,7 @@ const baseHost = (import.meta.env.VITE_IMG_API_URL || location.origin).replace(/
 const nodeHost = ref<string>(baseHost);
 const uploadProvider = ref<'imgur' | 'oss'>('imgur');
 // 上传接口
-const uploadAPI = computed(() => (uploadProvider.value === 'imgur' ? `${baseHost}/upload` : ''));
-const ossStsEndpoint = computed(() => `${baseHost}/oss/sts`);
+const uploadAPI = computed(() => (uploadProvider.value === 'imgur' ? `${baseHost}/upload` : `${baseHost}/oss/upload`));
 // 上传配置
 const UploadConfig = computed(() => ({
   AcceptTypes: uploadProvider.value === 'oss' ? '*/*' : 'image/*',
