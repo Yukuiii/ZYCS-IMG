@@ -4,9 +4,17 @@ const formatURL = (props: any, v: any, key?: string) => {
   const provider = v?._vh_provider || 'imgur';
   const ERROR_MSG = `${filename} 上传失败`;
   if (provider === 'oss') {
+    const host = props?.nodeHost?.replace(/\/$/, '');
     const ossUrl = v?.data?.link || v?.url;
-    if (!ossUrl) return ERROR_MSG;
-    return key === 'md' ? `![${filename}](${ossUrl})` : ossUrl;
+    if (!host || !ossUrl) return ERROR_MSG;
+    try {
+      const parsed = new URL(ossUrl);
+      const ossPath = parsed.pathname.replace(/^\/+/, '');
+      const finalUrl = `${host}/v3/${ossPath}`;
+      return key === 'md' ? `![${filename}](${finalUrl})` : finalUrl;
+    } catch {
+      return ERROR_MSG;
+    }
   }
   let FILE_ID = '';
   try {
