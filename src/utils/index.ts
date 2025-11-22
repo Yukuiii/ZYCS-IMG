@@ -1,14 +1,22 @@
 // URL格式化
 const formatURL = (props: any, v: any, key?: string) => {
-  let FILE_ID = '';
-  const ERROR_MSG = `${v._vh_filename} 上传失败`;
-  try {
-    FILE_ID = v.data.link.split('/').slice(-1)[0];
-  } catch { }
-  if (key == 'md') {
-    return FILE_ID ? `![${v._vh_filename}](${props.nodeHost}/v2/${FILE_ID})` : ERROR_MSG;
+  const filename = v?._vh_filename || '文件';
+  const provider = v?._vh_provider || 'imgur';
+  const ERROR_MSG = `${filename} 上传失败`;
+  if (provider === 'oss') {
+    const ossUrl = v?.data?.link || v?.url;
+    if (!ossUrl) return ERROR_MSG;
+    return key === 'md' ? `![${filename}](${ossUrl})` : ossUrl;
   }
-  return FILE_ID ? `${props.nodeHost}/v2/${FILE_ID}` : ERROR_MSG;
+  let FILE_ID = '';
+  try {
+    FILE_ID = v?.data?.link?.split('/')?.slice(-1)[0];
+  } catch {
+    FILE_ID = '';
+  }
+  if (!FILE_ID) return ERROR_MSG;
+  const finalUrl = `${props.nodeHost}/v2/${FILE_ID}`;
+  return key === 'md' ? `![${filename}](${finalUrl})` : finalUrl;
 };
 
-export { formatURL }
+export { formatURL };

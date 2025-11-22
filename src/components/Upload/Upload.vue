@@ -17,28 +17,45 @@
   </section>
 </template>
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useToast } from '@/components/ui/toast/use-toast';
+import { ossUploader } from '@/lib/ossUploader';
 const { toast } = useToast();
 // 参数
-const props = defineProps(['modelValue', 'UploadConfig', 'uploadAPI']);
+const props = defineProps<{
+  modelValue: Array<any>;
+  UploadConfig: Record<string, any>;
+  uploadAPI?: string;
+  provider?: string;
+  ossStsEndpoint?: string;
+}>();
 const emits = defineEmits(['update:modelValue']);
-const UploadConfig = ref<any>(props.UploadConfig);
+const UploadConfig = ref<Record<string, any>>(props.UploadConfig);
+const currentProvider = computed(() => props.provider || 'imgur');
+watch(
+  () => props.UploadConfig,
+  (val) => {
+    UploadConfig.value = val;
+  },
+  { deep: true, immediate: true },
+);
 // 文件上传列表变化事件
-const fileListChange = async (v: Event, type: boolean = false) => {
+const fileListChange = async (v: Event | FileList, type: boolean = false) => {
   let targetFileListArr: any = [];
   if (!type) {
-    if (!v.target) return;
-    targetFileListArr = (v.target as HTMLInputElement).files || [];
+    const event = v as Event;
+    if (!event.target) return;
+    targetFileListArr = (event.target as HTMLInputElement).files || [];
   } else {
-    targetFileListArr = v;
+    targetFileListArr = v as FileList;
   }
   // 处理图片格式
   targetFileListArr = await imgTypeFormat(targetFileListArr);
   const FileListArr: Array<any> = [...props.modelValue, ...Array.from(targetFileListArr || [])];
   // 过滤不符合Size的文件
-  let fileListFilter = FileListArr.filter((i: any) => UploadConfig.value.MaxSize && (i.size <= UploadConfig.value.MaxSize * 1024 * 1024 || i.upload_status == 'success'));
-  if (fileListFilter.length != FileListArr.length) toast({ title: 'Tips', description: `已过滤Size超过 ${UploadConfig.value.MaxSize}MB 的文件` });
+  let fileListFilter = FileListArr.filter((i: any) => !UploadConfig.value.MaxSize || i.size <= UploadConfig.value.MaxSize * 1024 * 1024 || i.upload_status == 'success');
+  if (fileListFilter.length != FileListArr.length && UploadConfig.value.MaxSize)
+    toast({ title: 'Tips', description: `已过滤Size超过 ${UploadConfig.value.MaxSize}MB 的文件` });
   // 过滤超过数量的文件
   if (UploadConfig.value.Max && fileListFilter.length > UploadConfig.value.Max) {
     toast({ title: 'Tips', description: `已过滤超过最大上传 ${UploadConfig.value.Max}个 的文件` });
@@ -81,8 +98,6 @@ const imgTypeFormat = async (files: File[]) => {
 const fileUpload = async (FileListArr: Array<any>) => {
   FileListArr.forEach(async (i: any) => {
     if (i.upload_status) return;
-    const formData = new FormData();
-    formData.append('file', i);
     // 做图片预览blob======
     if (i.type.startsWith('image/')) {
       const blob = URL.createObjectURL(i);
@@ -95,18 +110,39 @@ const fileUpload = async (FileListArr: Array<any>) => {
     emits('update:modelValue', [...FileListArr]);
     // 同步上传状态======
     try {
-      // 发送请求
-      const res = await fetch(props.uploadAPI, {
-        method: 'POST',
-        body: formData,
-      });
-      const result = await res.json();
-      i.upload_result = result;
-      i.upload_result._vh_filename = i.name;
+      let result: Record<string, any> | undefined;
+      if (currentProvider.value === 'oss') {
+        ossUploader.setEndpoint(props.ossStsEndpoint || '/oss/sts');
+        const ossResult = await ossUploader.uploadFile(i);
+        result = {
+          data: { link: ossResult.url },
+          objectName: ossResult.objectName,
+        };
+      } else {
+        if (!props.uploadAPI) throw new Error('缺少上传接口地址');
+        const formData = new FormData();
+        formData.append('file', i);
+        const res = await fetch(props.uploadAPI, {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) throw new Error(`上传失败: ${res.status} ${res.statusText}`);
+        result = await res.json();
+      }
+      i.upload_result = {
+        ...result,
+        _vh_filename: i.name,
+        _vh_provider: currentProvider.value,
+      };
       i.upload_status = 'success';
     } catch (error) {
       i.upload_status = 'error';
-      i.upload_result = error;
+      i.upload_result = {
+        error,
+        _vh_filename: i.name,
+        _vh_provider: currentProvider.value,
+      };
+      toast({ title: '上传失败', description: (error as Error).message || '未知错误' });
     } finally {
       // 同步上传状态======
       i.upload_progress = 100;
