@@ -70,6 +70,15 @@ class OssUploader {
     return filename.replace(/.*[\\/]/, '').replace(/[^a-zA-Z0-9.\-_]/g, '_');
   }
 
+  private buildCanonicalHeaders(headers: Record<string, string>): string {
+    return Object.keys(headers)
+      .map((key) => key.toLowerCase())
+      .sort()
+      .map((key) => `${key}:${headers[key]}`)
+      .join('\n')
+      .concat('\n');
+  }
+
   private generateObjectName(filename: string): string {
     const now = new Date();
     const timestamp = now.toISOString().replace(/[-:T]/g, '').split('.')[0];
@@ -114,13 +123,16 @@ class OssUploader {
     const objectName = this.generateObjectName(file.name);
     const date = new Date().toUTCString();
     const contentType = file.type || 'application/octet-stream';
-    const canonicalizedOssHeaders = `x-oss-security-token:${this.stsToken.SecurityToken}\n`;
+    const canonicalizedOssHeaders = this.buildCanonicalHeaders({
+      'x-oss-date': date,
+      'x-oss-security-token': this.stsToken.SecurityToken,
+    });
     const canonicalizedResource = `/${this.stsToken.BucketName}/${objectName}`;
     const signature = await this.generateSignature({
       method: 'PUT',
       contentMd5: '',
       contentType,
-      date,
+      date: '',
       canonicalizedOssHeaders,
       canonicalizedResource,
     });
@@ -134,8 +146,8 @@ class OssUploader {
         method: 'PUT',
         headers: {
           'Content-Type': contentType,
-          Date: date,
           Authorization: authorization,
+          'x-oss-date': date,
           'x-oss-security-token': this.stsToken.SecurityToken,
         },
         body: file,
